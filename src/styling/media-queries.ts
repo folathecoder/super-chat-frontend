@@ -1,0 +1,19 @@
+const BREAKPOINTS = {
+  SMALL_MOBILE: '320px',
+  MOBILE: '480px',
+  TABLET: '768px',
+  LARGE_TABLET: '1024px',
+  DESKTOP: '1280px',
+  LARGE_DESKTOP: '1440px',
+};
+
+const QUERIES = {
+  SMALL_MOBILE: `(min-width: ${BREAKPOINTS.SMALL_MOBILE})`,
+  MOBILE: `(min-width: ${BREAKPOINTS.MOBILE})`,
+  TABLET: `(min-width: ${BREAKPOINTS.TABLET})`,
+  LARGE_TABLET: `(min-width: ${BREAKPOINTS.LARGE_TABLET})`,
+  DESKTOP: `(min-width: ${BREAKPOINTS.DESKTOP})`,
+  LARGE_DESKTOP: `(min-width: ${BREAKPOINTS.LARGE_DESKTOP})`,
+};
+
+export default QUERIES;
