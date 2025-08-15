@@ -1,4 +1,5 @@
 'use client';
+
 import React from 'react';
 import styled, { css } from 'styled-components';
 import Link from 'next/link';
@@ -9,12 +10,10 @@ import SchoolIcon from '@mui/icons-material/School';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import LanguageIcon from '@mui/icons-material/Language';
 import ViewSidebarOutlinedIcon from '@mui/icons-material/ViewSidebarOutlined';
-import { conversations } from '@/data/conversations';
+import { useConversation } from '@/providers/conversationProvider';
 
 const ChatHistory = () => {
-  const sortedConversations = [...conversations].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-  );
+  const { conversations, conversationId } = useConversation();
 
   const menu = [
     {
@@ -83,7 +82,7 @@ const ChatHistory = () => {
       <ChatHistoryTitle>Chats</ChatHistoryTitle>
       <ChatHistoryList>
         <Scrollbar removeTracksWhenNotUsed>
-          {sortedConversations.length === 0 ? (
+          {conversations.length === 0 ? (
             <EmptyState>
               <ChatBubbleOutlineIcon
                 style={{ fontSize: 48, color: 'var(--text-tertiary)' }}
@@ -94,11 +93,11 @@ const ChatHistory = () => {
               </EmptyStateSubtext>
             </EmptyState>
           ) : (
-            sortedConversations.map((conversation, index) => (
+            conversations.map((conversation, index) => (
               <ChatHistoryListItem
                 key={conversation.id}
-                href={'/'}
-                $active={index === 1}
+                href={`/conversation/${conversation.id}`}
+                $active={conversation.id === conversationId}
               >
                 {conversation.title}
               </ChatHistoryListItem>
@@ -188,7 +187,6 @@ const ChatHistoryList = styled.div`
 `;
 
 const ChatHistoryListItem = styled(Link)<{ $active: boolean }>`
-  border-bottom: 1px solid var(--bg-primary);
   padding: var(--gap-3) var(--gap-4);
   white-space: nowrap;
   font-size: var(--font-size-small);

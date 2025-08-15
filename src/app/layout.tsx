@@ -1,7 +1,7 @@
 'use client';
 import { Suspense } from 'react';
 import StyledComponentsRegistry from '@/lib/registry';
-import { ThemeProvider } from '@/providers';
+import { ThemeProvider, ConversationProvider } from '@/providers';
 
 export default function RootLayout({
   children,
@@ -13,7 +13,9 @@ export default function RootLayout({
       <body>
         <Suspense>
           <ThemeProvider>
-            <StyledComponentsRegistry>{children}</StyledComponentsRegistry>
+            <ConversationProvider>
+              <StyledComponentsRegistry>{children}</StyledComponentsRegistry>
+            </ConversationProvider>
           </ThemeProvider>
         </Suspense>
       </body>

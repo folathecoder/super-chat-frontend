@@ -7,6 +7,9 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import { Author } from '@/types/enums';
+import Loader from '@/components/atoms/loader';
+import { MessageStatus } from '@/types/api/conversation';
+import { Alert, Button, Space } from 'antd';
 
 interface MessageProps {
   message: {
@@ -20,21 +23,52 @@ interface MessageProps {
 }
 
 const Message = ({ message }: MessageProps) => {
+  const errorTitle =
+    message.author === Author.AI
+      ? 'Agent failed to respond'
+      : 'Message failed to send';
+
+  const errorMessage =
+    message.author === Author.AI
+      ? 'Something went wrong while generating the Agent response. Please try again.'
+      : 'Your message could not be delivered. Check your connection or try again.';
+
   return (
-    <MessageContainer key={message.id} $author={message.author as Author}>
-      <MessageContent $author={message.author as Author}>
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          rehypePlugins={[rehypeRaw, rehypeSanitize]}
-        >
-          {message.content}
-        </ReactMarkdown>
-      </MessageContent>
+    <MessageContainer
+      key={message.id}
+      $author={message.author as Author}
+      $isLoading={message.status === MessageStatus.LOADING}
+    >
+      {message.author === Author.AI && (
+        <MessageAuthor $author={message.author as Author}>AI</MessageAuthor>
+      )}
+      {message.status === MessageStatus.SUCCESS && (
+        <MessageContent $author={message.author as Author}>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeRaw, rehypeSanitize]}
+          >
+            {message.content}
+          </ReactMarkdown>
+        </MessageContent>
+      )}
+      {message.status === MessageStatus.LOADING && <Loader />}
+      {message.status === MessageStatus.FAILED && (
+        <Alert
+          message={errorTitle}
+          showIcon
+          description={errorMessage}
+          type="error"
+        />
+      )}
+      {message.author === Author.USER && (
+        <MessageAuthor $author={message.author as Author}>FA</MessageAuthor>
+      )}
     </MessageContainer>
   );
 };
 
-const MessageContainer = styled.div<{ $author: Author }>`
+const MessageContainer = styled.div<{ $author: Author; $isLoading: boolean }>`
   display: flex;
   width: 100%;
 
@@ -45,6 +79,39 @@ const MessageContainer = styled.div<{ $author: Author }>`
         `
       : css`
           justify-content: flex-end;
+        `}
+
+  ${({ $isLoading }) =>
+    $isLoading &&
+    css`
+      align-items: center;
+      gap: var(--gap-4);
+    `}
+`;
+
+const MessageAuthor = styled.div<{ $author: Author }>`
+  height: 40px;
+  width: 40px;
+  flex-shrink: 0;
+  border-radius: 100%;
+  display: grid;
+  place-items: center;
+  font-size: var(--font-size-regular);
+  line-height: var(--line-height-regular);
+  font-family: var(--font-family-1);
+  font-weight: var(--font-weight-bold);
+  text-transform: capitalize;
+  color: var(--text-primary);
+
+  ${({ $author }) =>
+    $author === Author.AI
+      ? css`
+          background: var(--gradient-1);
+          margin-top: var(--gap-4);
+        `
+      : css`
+          background: var(--accent-quaternary);
+          margin-left: var(--gap-2);
         `}
 `;
 
@@ -105,6 +172,9 @@ const MessageContent = styled.div<{ $author: Author }>`
   }
   li {
     margin-bottom: var(--gap-1);
+    display: list-item;
+    list-style-position: outside;
+    list-style-type: disc;
   }
   ul li::marker {
     color: var(--accent-secondary);

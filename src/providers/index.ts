@@ -1,3 +1,4 @@
 import ThemeProvider from '@/providers/themeProvider';
+import ConversationProvider from '@/providers/conversationProvider';
 
-export { ThemeProvider };
+export { ThemeProvider, ConversationProvider };

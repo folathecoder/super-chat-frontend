@@ -1,36 +1,72 @@
-import React from 'react';
+import React, { RefObject, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { Scrollbar } from 'react-scrollbars-custom';
-import { conversation } from '@/data/chat';
 import Message from './message';
 import ChatForm from './chatForm';
 import Prompts from './prompts';
+import { useRouter } from 'next/navigation';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
+import { useConversation } from '@/providers/conversationProvider';
+import { startConversation } from '@/services/conversation.service';
+
+type ScrollbarRef = {
+  scrollToBottom: () => void;
+};
 
 const Chat = () => {
-  const { messages, title } = conversation;
+  const router = useRouter();
+  const { conversation, fetchConversations, loadingConversation } =
+    useConversation();
+  const { messages, title } = conversation || {};
+
+  const scrollbarRef = useRef<ScrollbarRef | null>(null);
+
+  const handleStartConversation = async () => {
+    try {
+      const newConversation = await startConversation();
+
+      if (!newConversation.id) {
+        throw new Error('Failed to create a new conversation.');
+      }
+
+      fetchConversations();
+      router.push(`/conversation/${newConversation.id}`);
+    } catch (error) {
+      console.error('Error starting conversation:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (scrollbarRef?.current) {
+      scrollbarRef?.current?.scrollToBottom();
+    }
+  }, [messages]);
 
   return (
     <ChatContainer>
       <ChatHeader>
         <h1>{title}</h1>
-        <NewChatButton>
+        <NewChatButton onClick={handleStartConversation}>
           <ChatBubbleOutlineIcon />
           <span>New Chat</span>
         </NewChatButton>
       </ChatHeader>
       <Conversation>
-        <Scrollbar>
-          {messages.length > 0 ? (
-            <ConversationList>
-              {messages.map((message) => (
-                <Message key={message.id} message={message} />
-              ))}
-            </ConversationList>
-          ) : (
-            <Prompts />
-          )}
-        </Scrollbar>
+        {!loadingConversation && (
+          <Scrollbar
+            ref={scrollbarRef as RefObject<Scrollbar | ScrollbarRef | null>}
+          >
+            {messages && messages?.length > 0 ? (
+              <ConversationList>
+                {messages?.map((message) => (
+                  <Message key={message.id} message={message} />
+                ))}
+              </ConversationList>
+            ) : (
+              <Prompts />
+            )}
+          </Scrollbar>
+        )}
       </Conversation>
       <ChatForm />
     </ChatContainer>
@@ -58,6 +94,7 @@ const ChatHeader = styled.section`
     font-family: var(--font-family-1);
     font-weight: var(--font-weight-regular);
     color: var(--text-tertiary);
+    transition: all 0.3s ease-in-out;
   }
 `;
 

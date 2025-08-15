@@ -3,7 +3,11 @@ import styled from 'styled-components';
 import ChatHistory from './children/chatHistory/chatHistory';
 import Chat from './children/chat/chat';
 
-const ConversationLayout = () => {
+interface ConversationLayoutProps {
+  conversationId?: string;
+}
+
+const ConversationLayout = ({ conversationId }: ConversationLayoutProps) => {
   return (
     <LayoutContainer>
       <ChatHistory />
