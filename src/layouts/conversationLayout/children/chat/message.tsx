@@ -9,7 +9,10 @@ import rehypeSanitize from 'rehype-sanitize';
 import { Author } from '@/types/enums';
 import Loader from '@/components/atoms/loader';
 import { MessageStatus } from '@/types/api/conversation';
-import { Alert, Button, Space } from 'antd';
+import { Alert } from 'antd';
+import CodeBlock from '@/components/molecules/codeBlock';
+import userInitials from '@/utils/helpers/userInitials';
+import { useAuth } from '@/providers/authenticationProvider';
 
 interface MessageProps {
   message: {
@@ -23,6 +26,8 @@ interface MessageProps {
 }
 
 const Message = ({ message }: MessageProps) => {
+  const { user } = useAuth();
+
   const errorTitle =
     message.author === Author.AI
       ? 'Agent failed to respond'
@@ -47,6 +52,9 @@ const Message = ({ message }: MessageProps) => {
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeRaw, rehypeSanitize]}
+            components={{
+              code: CodeBlock,
+            }}
           >
             {message.content}
           </ReactMarkdown>
@@ -54,7 +62,7 @@ const Message = ({ message }: MessageProps) => {
       )}
       {message.status === MessageStatus.LOADING && <Loader />}
       {message.status === MessageStatus.FAILED && (
-        <Alert
+        <MessageError
           message={errorTitle}
           showIcon
           description={errorMessage}
@@ -62,7 +70,9 @@ const Message = ({ message }: MessageProps) => {
         />
       )}
       {message.author === Author.USER && (
-        <MessageAuthor $author={message.author as Author}>FA</MessageAuthor>
+        <MessageAuthor $author={message.author as Author}>
+          {userInitials(user?.firstName, user?.lastName)}
+        </MessageAuthor>
       )}
     </MessageContainer>
   );
@@ -156,13 +166,14 @@ const MessageContent = styled.div<{ $author: Author }>`
   }
 
   a {
-    color: var(--link-default);
+    color: var(--accent-tertiary);
     text-decoration: underline;
     text-underline-offset: 2px;
     transition: color 0.2s ease;
   }
   a:hover {
-    color: var(--accent-primary);
+    color: var(--accent-tertiary);
+    opacity: 0.7;
   }
 
   ul,
@@ -269,6 +280,25 @@ const MessageContent = styled.div<{ $author: Author }>`
             margin: 0;
           }
         `}
+`;
+
+const MessageError = styled(Alert)`
+  margin-left: var(--gap-4);
+  font-family: var(--font-family-1);
+
+  &.ant-alert-error {
+    background-color: var(--bg-quaternary);
+    border: none;
+  }
+
+  .ant-alert-message,
+  .ant-alert-description {
+    color: var(--text-primary) !important;
+  }
+
+  .ant-alert-message {
+    font-weight: var(--font-weight-bold);
+  }
 `;
 
 export default Message;

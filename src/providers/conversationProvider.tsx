@@ -9,11 +9,18 @@ import React, {
   useRef,
 } from 'react';
 import { useParams } from 'next/navigation';
-import { Conversations, ConversationDetail } from '@/types/api/conversation';
+import {
+  Message,
+  Conversation,
+  Conversations,
+  ConversationDetail,
+} from '@/types/api/conversation';
 import {
   getConversations,
   getConversation,
 } from '@/services/conversation.service';
+import socket from '@/lib/clients/socketClient';
+import SOCKET_EVENTS from '@/utils/constants/socketEvents';
 
 export interface ConversationContextType {
   conversations: Conversations;
@@ -28,6 +35,12 @@ export interface ConversationContextType {
     React.SetStateAction<ConversationDetail | undefined>
   >;
   setConversations: React.Dispatch<React.SetStateAction<Conversations>>;
+  chatMessage: string;
+  setChatMessage: React.Dispatch<React.SetStateAction<string>>;
+  addMessageToConversation: (
+    currentConversation: ConversationDetail,
+    newMessage: Message | undefined
+  ) => void;
 }
 
 export const ConversationContext =
@@ -44,6 +57,7 @@ export const ConversationProvider: React.FC<{
   const [error, setError] = useState<string>();
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [loadingConversation, setLoadingConversation] = useState(false);
+  const [chatMessage, setChatMessage] = useState('');
 
   const loadingConversationsRef = useRef(false);
   const loadingConversationRef = useRef(false);
@@ -88,6 +102,63 @@ export const ConversationProvider: React.FC<{
     }
   }, []);
 
+  const addMessageToConversation = useCallback(
+    (
+      currentConversation: ConversationDetail,
+      newMessage: Message | undefined
+    ) => {
+      if (!currentConversation || !newMessage) return;
+
+      setConversation((previousConversation) => {
+        if (!previousConversation) return previousConversation;
+
+        const existingMessageIndex = previousConversation.messages.findIndex(
+          (message) => message.id === newMessage.id
+        );
+
+        const updatedMessages =
+          existingMessageIndex !== -1
+            ? previousConversation.messages.map((message, index) =>
+                index === existingMessageIndex ? newMessage : message
+              )
+            : [...previousConversation.messages, newMessage];
+
+        return { ...previousConversation, messages: updatedMessages };
+      });
+    },
+    [setConversation]
+  );
+
+  const updateConversationTitleInList = useCallback(
+    (
+      currentConversation: ConversationDetail,
+      allConversations: Conversations,
+      updatedConversationTitle: string
+    ) => {
+      if (
+        !currentConversation ||
+        !updatedConversationTitle ||
+        !allConversations
+      )
+        return;
+
+      setConversation((previousConversation) =>
+        previousConversation
+          ? { ...previousConversation, title: updatedConversationTitle }
+          : previousConversation
+      );
+
+      setConversations((previousConversations) =>
+        previousConversations.map((existingConversation) =>
+          existingConversation.id === conversationId
+            ? { ...existingConversation, title: updatedConversationTitle }
+            : existingConversation
+        )
+      );
+    },
+    [setConversation, setConversations, conversationId]
+  );
+
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
@@ -99,6 +170,48 @@ export const ConversationProvider: React.FC<{
       setConversation(undefined);
     }
   }, [conversationId]);
+
+  useEffect(() => {
+    if (!conversationId || !conversation || !conversations) return;
+
+    socket.emit('join_room', { conversation_id: conversationId });
+
+    const handleAIMessageReceived = (receivedMessage: Message) =>
+      addMessageToConversation(conversation, receivedMessage);
+
+    const handleUserMessageCreated = (receivedMessage: Message) =>
+      addMessageToConversation(conversation, receivedMessage);
+
+    const handleConversationTitleCreated = (
+      updatedConversation: Conversation
+    ) => {
+      fetchConversations();
+      updateConversationTitleInList(
+        conversation,
+        conversations,
+        updatedConversation.title
+      );
+    };
+
+    socket.on(SOCKET_EVENTS.CHAT_AI_MESSAGE, handleAIMessageReceived);
+    socket.on(SOCKET_EVENTS.CHAT_USER_CREATE, handleUserMessageCreated);
+    socket.on(SOCKET_EVENTS.CHAT_TITLE_CREATE, handleConversationTitleCreated);
+
+    return () => {
+      socket.off(SOCKET_EVENTS.CHAT_AI_MESSAGE, handleAIMessageReceived);
+      socket.off(SOCKET_EVENTS.CHAT_USER_CREATE, handleUserMessageCreated);
+      socket.off(
+        SOCKET_EVENTS.CHAT_TITLE_CREATE,
+        handleConversationTitleCreated
+      );
+    };
+  }, [
+    conversationId,
+    conversation,
+    conversations,
+    addMessageToConversation,
+    updateConversationTitleInList,
+  ]);
 
   return (
     <ConversationContext.Provider
@@ -113,6 +226,9 @@ export const ConversationProvider: React.FC<{
         fetchConversation,
         setConversation,
         setConversations,
+        chatMessage,
+        setChatMessage,
+        addMessageToConversation,
       }}
     >
       {children}

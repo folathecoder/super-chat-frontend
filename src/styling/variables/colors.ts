@@ -23,8 +23,28 @@ export const colorVariables = ({ theme }: { theme: Theme }) => `
   --border-secondary: ${theme.color.border100};
   --border-tertiary: ${theme.color.border200};
 
-   --link-default: ${theme.color.font500};
-   --error: ${theme.color.accent800};
+  --link-default: ${theme.color.font500};
+  --error: ${theme.color.accent800};
+
+  --tag-progress-text: ${theme.color.accent100}; 
+  --tag-progress-border: ${theme.color.accent200};
+  --tag-progress-bg: ${theme.color.bg300}; 
+
+  --tag-upload-success-content: ${theme.color.accent600};
+  --tag-upload-success-border: ${theme.color.accent600};
+  --tag-upload-success-bg: ${theme.color.bg300};
+
+  --tag-done-text: ${theme.color.accent600};
+  --tag-done-border: ${theme.color.accent600};
+  --tag-done-bg: ${theme.color.bg300};
+
+  --tag-error-text: ${theme.color.accent700};
+  --tag-error-border: ${theme.color.accent700};
+  --tag-error-bg: ${theme.color.bg300};
+
+  --tag-promo-text: ${theme.color.accent400};
+  --tag-promo-border: ${theme.color.accent400};
+  --tag-promo-bg: ${theme.color.bg300};
 `;
 
 export default colorVariables;

@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import styled, { css } from 'styled-components';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Scrollbar } from 'react-scrollbars-custom';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import WorkOutlineIcon from '@mui/icons-material/WorkOutline';
@@ -10,10 +11,16 @@ import SchoolIcon from '@mui/icons-material/School';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import LanguageIcon from '@mui/icons-material/Language';
 import ViewSidebarOutlinedIcon from '@mui/icons-material/ViewSidebarOutlined';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useConversation } from '@/providers/conversationProvider';
+import {
+  deleteConversation,
+  getConversations,
+} from '@/services/conversation.service';
 
 const ChatHistory = () => {
-  const { conversations, conversationId } = useConversation();
+  const router = useRouter();
+  const { conversations, conversationId, setConversations } = useConversation();
 
   const menu = [
     {
@@ -58,6 +65,27 @@ const ChatHistory = () => {
     },
   ];
 
+  const handleDeleteConversation = useCallback(async () => {
+    if (!conversationId) return;
+
+    try {
+      await deleteConversation(conversationId);
+
+      const conversationsData = await getConversations();
+      const sortedConversations = [...conversationsData].sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
+      setConversations(sortedConversations);
+    } catch (err) {
+      console.error(
+        `Failed to delete conversation with conversationId: ${conversationId}. Please try again; ${String(
+          err
+        )}`
+      );
+    }
+  }, [conversationId]);
+
   return (
     <ChatHistoryContainer>
       <ChatHistoryHeader>
@@ -96,10 +124,14 @@ const ChatHistory = () => {
             conversations.map((conversation, index) => (
               <ChatHistoryListItem
                 key={conversation.id}
-                href={`/conversation/${conversation.id}`}
                 $active={conversation.id === conversationId}
               >
-                {conversation.title}
+                <Link href={`/conversation/${conversation.id}`}>
+                  {conversation.title}
+                </Link>
+                <span>
+                  <DeleteOutlineIcon onClick={handleDeleteConversation} />
+                </span>
               </ChatHistoryListItem>
             ))
           )}
@@ -186,7 +218,7 @@ const ChatHistoryList = styled.div`
   }
 `;
 
-const ChatHistoryListItem = styled(Link)<{ $active: boolean }>`
+const ChatHistoryListItem = styled.div<{ $active: boolean }>`
   padding: var(--gap-3) var(--gap-4);
   white-space: nowrap;
   font-size: var(--font-size-small);
@@ -195,8 +227,17 @@ const ChatHistoryListItem = styled(Link)<{ $active: boolean }>`
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   flex-shrink: 0;
+
+  & > *:first-child {
+    flex: 1;
+    max-width: 90%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
   ${({ $active }) =>
     $active &&
@@ -206,6 +247,10 @@ const ChatHistoryListItem = styled(Link)<{ $active: boolean }>`
 
   &:hover {
     background-color: var(--bg-quaternary);
+  }
+
+  svg {
+    font-size: var(--font-size-body);
   }
 `;
 

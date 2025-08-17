@@ -27,7 +27,7 @@ export async function getConversation(
 export async function deleteConversation(
   conversationId: string
 ): Promise<void> {
-  const response = await apiClient.delete<ConversationDetail>(
+  await apiClient.delete<ConversationDetail>(
     `/conversations/${conversationId}`
   );
 }

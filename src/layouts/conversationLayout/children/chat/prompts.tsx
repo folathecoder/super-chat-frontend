@@ -1,26 +1,63 @@
-import React from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import styled from 'styled-components';
+import { useConversation } from '@/providers/conversationProvider';
+import { getUserPrompts } from '@/services/prompt.service';
+import { UserPrompts } from '@/types/api/prompt';
+import { Skeleton } from 'antd';
+import { useAuth } from '@/providers/authenticationProvider';
 
-const prompts = [
-  { id: 1, question: 'What’s your favorite programming language and why?' },
-  { id: 2, question: 'Describe a project you’re most proud of.' },
-  { id: 3, question: 'How do you stay updated with the latest tech trends?' },
-  { id: 4, question: 'What motivates you to learn new skills every day?' },
-];
+const PLACEHOLDER_COUNT = 4;
 
 const Prompts = () => {
+  const { setChatMessage } = useConversation();
+  const { user } = useAuth();
+
+  const [error, setError] = useState<string>();
+  const [loading, setLoading] = useState(false);
+  const [prompt, setPrompt] = useState<UserPrompts | undefined>();
+
+  const fetchUserPrompts = useCallback(async () => {
+    setLoading(true);
+    setError(undefined);
+
+    try {
+      const data = await getUserPrompts();
+      setPrompt(data);
+    } catch (err) {
+      setError(
+        `Failed to fetch user prompts. Please try again; ${String(err)}`
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUserPrompts();
+  }, []);
+
   return (
     <PromptsContainer>
       <PromptsInnerContainer>
         <PromptsHeading>
-          Hello Folarin! How can I help you today?
+          {`Hello ${user?.firstName}! How can I help you today?`}
         </PromptsHeading>
         <PromptList>
-          {prompts.map((prompt) => (
-            <PromptListItem key={prompt.id} tabIndex={0}>
-              {prompt.question}
-            </PromptListItem>
-          ))}
+          {loading
+            ? Array.from({ length: PLACEHOLDER_COUNT }, (_, index) => (
+                <PromptListItem key={`prompt-skeleton-${index}`}>
+                  <Skeleton active paragraph={{ rows: 1, width: '100%' }} />
+                </PromptListItem>
+              ))
+            : prompt?.prompts.map((prompt) => (
+                <PromptListItem
+                  key={prompt}
+                  tabIndex={0}
+                  onClick={() => setChatMessage(prompt)}
+                >
+                  {prompt}
+                </PromptListItem>
+              ))}
         </PromptList>
       </PromptsInnerContainer>
     </PromptsContainer>

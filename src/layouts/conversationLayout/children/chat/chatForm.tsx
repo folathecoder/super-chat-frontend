@@ -1,22 +1,29 @@
 'use client';
 
-import React, { useEffect, useCallback, useState } from 'react';
-import styled from 'styled-components';
-import { Form, Input, message as antdMessage } from 'antd';
+import React, { useEffect, useRef, useState } from 'react';
+import styled, { css } from 'styled-components';
+import {
+  Tooltip,
+  Button,
+  message,
+  Upload,
+  Form,
+  Input,
+  message as antdMessage,
+} from 'antd';
 import SendIcon from '@mui/icons-material/Send';
-import { useParams } from 'next/navigation';
-
+import { useParams, useRouter } from 'next/navigation';
+import type { UploadProps } from 'antd';
+import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
+import AttachmentIcon from '@mui/icons-material/Attachment';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { createMessage } from '@/services/message.service';
+import { startConversation } from '@/services/conversation.service';
 import { Author } from '@/types/enums';
 import { useConversation } from '@/providers/conversationProvider';
-import {
-  Message,
-  ConversationDetail,
-  Conversation,
-  Conversations,
-} from '@/types/api/conversation';
-import socket from '@/lib/clients/socketClient';
-import SOCKET_EVENTS from '@/utils/constants/socketEvents';
+import type { UploadFile, UploadFileStatus } from 'antd/es/upload/interface';
+import TruncateText from '@/components/atoms/textTruncate';
+import { VERSION, BASE_URL } from '@/lib/clients/apiClient';
 
 const { TextArea } = Input;
 
@@ -24,120 +31,102 @@ interface ChatFormValues {
   message: string;
 }
 
+interface FileIdWithType {
+  id: string;
+  type: string;
+  status: UploadFileStatus;
+}
+
+interface FileInfo {
+  fileId: string;
+  url: string;
+  fileName?: string;
+}
+
+interface UploadStatus {
+  [uid: string]: boolean;
+}
+
+const getFileName = (url: string): string => {
+  const matches = url.match(/^.*?([^/]+$)$/);
+  if (matches) {
+    return matches[1];
+  }
+  return url;
+};
+
 const ChatForm = () => {
-  const { conversation, setConversation, conversations, setConversations } =
-    useConversation();
+  const {
+    conversation,
+    chatMessage,
+    setChatMessage,
+    addMessageToConversation,
+  } = useConversation();
   const [formInstance] = Form.useForm<ChatFormValues>();
   const routeParameters = useParams();
+  const router = useRouter();
   const conversationId = routeParameters?.conversationId as string;
-  const [messageInputValue, setMessageInputValue] = useState('');
 
-  const addMessageToConversation = useCallback(
-    (
-      currentConversation: ConversationDetail,
-      newMessage: Message | undefined
-    ) => {
-      if (!currentConversation || !newMessage) return;
+  const initialFiles: FileInfo[] = [];
+  const fileToFileIdMap = useRef<Record<string, FileIdWithType>>({}).current;
 
-      setConversation((previousConversation) => {
-        if (!previousConversation) return previousConversation;
-
-        const existingMessageIndex = previousConversation.messages.findIndex(
-          (message) => message.id === newMessage.id
-        );
-
-        const updatedMessages =
-          existingMessageIndex !== -1
-            ? previousConversation.messages.map((message, index) =>
-                index === existingMessageIndex ? newMessage : message
-              )
-            : [...previousConversation.messages, newMessage];
-
-        return { ...previousConversation, messages: updatedMessages };
-      });
-    },
-    [setConversation]
-  );
-
-  const updateConversationTitleInList = useCallback(
-    (
-      currentConversation: ConversationDetail,
-      allConversations: Conversations,
-      updatedConversationTitle: string
-    ) => {
-      if (
-        !currentConversation ||
-        !updatedConversationTitle ||
-        !allConversations
-      )
-        return;
-
-      setConversation((previousConversation) =>
-        previousConversation
-          ? { ...previousConversation, title: updatedConversationTitle }
-          : previousConversation
-      );
-
-      setConversations((previousConversations) =>
-        previousConversations.map((existingConversation) =>
-          existingConversation.id === conversationId
-            ? { ...existingConversation, title: updatedConversationTitle }
-            : existingConversation
-        )
-      );
-    },
-    [setConversation, setConversations, conversationId]
-  );
+  const [fileIds, setFileIds] = useState<string[]>([]);
+  const [fileList, setFileList] = useState<UploadFile[]>([]);
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus>({});
 
   useEffect(() => {
-    if (!conversationId || !conversation || !conversations) return;
+    formInstance.setFieldsValue({ message: chatMessage });
+  }, [chatMessage, formInstance]);
 
-    socket.emit('join_room', { conversation_id: conversationId });
+  useEffect(() => {
+    if (initialFiles?.length) {
+      const initialFileList: UploadFile[] = [];
+      for (const file of initialFiles) {
+        initialFileList.push({
+          uid: file.fileId,
+          url: file.url,
+          status: 'done',
+          name: file.fileName || getFileName(file.url),
+        });
+        fileToFileIdMap[file.fileId] = {
+          id: file.fileId,
+          type: 'FILE',
+          status: 'done',
+        };
+      }
+      setFileList(initialFileList);
+    }
+  }, [initialFiles, fileToFileIdMap]);
 
-    const handleAIMessageReceived = (receivedMessage: Message) =>
-      addMessageToConversation(conversation, receivedMessage);
+  useEffect(() => {
+    setFileIds(fileList.map((f) => fileToFileIdMap[f.uid].id));
+  }, [fileList, fileToFileIdMap]);
 
-    const handleUserMessageCreated = (receivedMessage: Message) =>
-      addMessageToConversation(conversation, receivedMessage);
+  const convertToMarkdown = (text: string): string => {
+    let markdown = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
-    const handleConversationTitleCreated = (
-      updatedConversation: Conversation
-    ) =>
-      updateConversationTitleInList(
-        conversation,
-        conversations,
-        updatedConversation.title
-      );
+    markdown = markdown.replace(/(https?:\/\/[^\s]+)/g, '[$1]($1)');
+    markdown = markdown.replace(/\*\*(.*?)\*\*/g, '**$1**');
+    markdown = markdown.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '*$1*');
+    markdown = markdown.replace(/```([\s\S]*?)```/g, '```$1```');
+    markdown = markdown.replace(/`([^`]+)`/g, '`$1`');
 
-    socket.on(SOCKET_EVENTS.CHAT_AI_MESSAGE, handleAIMessageReceived);
-    socket.on(SOCKET_EVENTS.CHAT_USER_CREATE, handleUserMessageCreated);
-    socket.on(SOCKET_EVENTS.CHAT_TITLE_CREATE, handleConversationTitleCreated);
-
-    return () => {
-      socket.off(SOCKET_EVENTS.CHAT_AI_MESSAGE, handleAIMessageReceived);
-      socket.off(SOCKET_EVENTS.CHAT_USER_CREATE, handleUserMessageCreated);
-      socket.off(
-        SOCKET_EVENTS.CHAT_TITLE_CREATE,
-        handleConversationTitleCreated
-      );
-    };
-  }, [
-    conversationId,
-    conversation,
-    conversations,
-    addMessageToConversation,
-    updateConversationTitleInList,
-  ]);
+    return markdown;
+  };
 
   const handleFormSubmit = async () => {
-    if (!conversationId) {
-      antdMessage.error('No conversation selected.');
-      return;
-    }
-
     try {
-      const createdMessage = await createMessage(conversationId, {
-        content: messageInputValue.trim(),
+      const conversationIdToUse =
+        conversationId || (await startConversation()).id;
+
+      router.push(`/conversation/${conversationIdToUse}`);
+
+      if (!conversationIdToUse) {
+        throw new Error('Failed to start or retrieve conversation');
+      }
+
+      const createdMessage = await createMessage(conversationIdToUse, {
+        content: chatMessage.trim(),
         author: Author.USER,
       });
 
@@ -145,12 +134,112 @@ const ChatForm = () => {
         addMessageToConversation(conversation, createdMessage);
       }
 
-      formInstance.resetFields();
-      setMessageInputValue('');
+      resetFormFields();
     } catch (error) {
       console.error('Failed to send message', error);
       antdMessage.error('Failed to send message.');
     }
+  };
+
+  const resetFormFields = () => {
+    formInstance.resetFields();
+    setChatMessage('');
+    setFileList([]);
+    setFileIds([]);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+
+    const pastedText = e.clipboardData.getData('text');
+    const markdownText = convertToMarkdown(pastedText);
+
+    // Get current cursor position
+    const target = e.target as HTMLTextAreaElement;
+    const start = target.selectionStart;
+    const end = target.selectionEnd;
+
+    // Insert the markdown text at cursor position
+    const currentValue = chatMessage;
+    const newValue =
+      currentValue.substring(0, start) +
+      markdownText +
+      currentValue.substring(end);
+
+    setChatMessage(newValue);
+
+    // Update form field
+    formInstance.setFieldValue('message', newValue);
+
+    // Set cursor position after the pasted text
+    setTimeout(() => {
+      target.selectionStart = target.selectionEnd = start + markdownText.length;
+      target.focus();
+    }, 0);
+  };
+
+  const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = event.target.value;
+    setChatMessage(value);
+    formInstance.setFieldValue('message', value);
+  };
+
+  const handleRemove = (file: UploadFile) => {
+    setFileList((prev) => prev.filter((f) => f.uid !== file.uid));
+    delete fileToFileIdMap[file.uid];
+    setFileIds(Object.values(fileToFileIdMap).map((f) => f.id));
+    setUploadStatus((prev) => {
+      const newStatus = { ...prev };
+      delete newStatus[file.uid];
+      return newStatus;
+    });
+  };
+
+  const uploadProps: UploadProps = {
+    name: 'file',
+    action: `${BASE_URL}/api/${VERSION}/files/upload`,
+    headers: { authorization: 'authorization-text' },
+    multiple: true,
+    maxCount: 4,
+    fileList,
+    disabled: fileList.length === 4,
+    onChange(info) {
+      // Update fileList with proper status
+      const updatedList = info.fileList.map((file) => {
+        if (file.response) {
+          // Assume your backend returns uploaded file id as response.id
+          file.uid = file.response.id || file.uid;
+          file.status = 'done';
+        }
+        return file;
+      });
+
+      setFileList(updatedList);
+
+      // Update file map and fileIds
+      const newMap: Record<string, FileIdWithType> = {};
+      updatedList.forEach((f) => {
+        newMap[f.uid] = {
+          id: f.uid,
+          type: 'FILE',
+          status: f.status,
+        };
+      });
+      Object.assign(fileToFileIdMap, newMap);
+      setFileIds(Object.values(fileToFileIdMap).map((f) => f.id));
+
+      // Show messages
+      const lastFile = info.file;
+      if (lastFile.status === 'done') {
+        message.success(`${lastFile.name} uploaded successfully`);
+      } else if (lastFile.status === 'error') {
+        message.error(`${lastFile.name} upload failed.`);
+      }
+    },
+    onRemove(file) {
+      handleRemove(file);
+      return true;
+    },
   };
 
   return (
@@ -168,8 +257,8 @@ const ChatForm = () => {
               autoSize={{ minRows: 1, maxRows: 6 }}
               autoFocus
               variant="borderless"
-              value={messageInputValue}
-              onChange={(event) => setMessageInputValue(event.target.value)}
+              onChange={handleInputChange}
+              onPaste={handlePaste}
               onPressEnter={(event) => {
                 if (!event.shiftKey) {
                   event.preventDefault();
@@ -178,10 +267,35 @@ const ChatForm = () => {
               }}
             />
           </Form.Item>
-          <SendButton type="submit" disabled={!messageInputValue.trim()}>
-            <SendIcon style={{ fontSize: 20 }} />
-          </SendButton>
+          <StyledUpload {...uploadProps}>
+            <Button icon={<FileUploadOutlinedIcon />} />
+          </StyledUpload>
+          <Tooltip title="Upload a maximum of 4 files" placement="top">
+            <SendButton type="submit" disabled={!chatMessage.trim()}>
+              <SendIcon style={{ fontSize: 20 }} />
+            </SendButton>
+          </Tooltip>
         </StyledForm>
+        {fileList.length > 0 && (
+          <FileListContainer>
+            <FileList>
+              {fileList.map((file) => (
+                <FileListItem key={file.uid} $fileStatus={file.status}>
+                  <FileListContent className="file-list-content">
+                    <AttachmentIcon />
+                    <FileListName>{file.name}</FileListName>
+                  </FileListContent>
+                  <FileListDelete
+                    onClick={() => handleRemove(file)}
+                    className={'file-list-delete'}
+                  >
+                    <DeleteIcon />
+                  </FileListDelete>
+                </FileListItem>
+              ))}
+            </FileList>
+          </FileListContainer>
+        )}
       </ChatFormInner>
     </ChatFormContainer>
   );
@@ -223,7 +337,7 @@ const ChatFormInner = styled.div`
 
 const StyledForm: typeof Form = styled(Form)`
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 8px;
   border-radius: var(--border-radius-xLarge);
 
@@ -241,6 +355,11 @@ const StyledTextArea = styled(TextArea)`
   padding: 10px;
   font-size: var(--font-size-base);
   caret-color: var(--accent-quaternary);
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 
   &:focus {
     outline: none;
@@ -276,5 +395,151 @@ const SendButton = styled.button`
     pointer-events: none;
   }
 `;
+
+const StyledUpload = styled(Upload)`
+  button {
+    background-color: transparent;
+    border-color: var(--border-secondary) !important;
+
+    &:hover {
+      background-color: transparent !important;
+      border-color: var(--border-tertiary) !important;
+
+      svg {
+        color: var(--text-secondary) !important;
+      }
+    }
+  }
+
+  svg {
+    color: var(--text-primary) !important;
+    font-size: var(--font-size-regular);
+  }
+
+  .ant-upload-list {
+    display: none;
+  }
+
+  .ant-upload-disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
+const FileList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-1);
+  margin-top: var(--gap-1);
+`;
+
+const FileListItem = styled.div<{ $fileStatus?: UploadFileStatus }>`
+  padding: var(--gap-2);
+  border-radius: var(--border-radius-xLarge);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--gap-2);
+
+  svg path {
+    fill: transparent !important;
+    stroke: var(--text-quaternary) !important;
+  }
+
+  ${({ $fileStatus }) =>
+    $fileStatus === 'done' &&
+    css`
+      background-color: var(--tag-upload-success-bg) !important;
+      color: var(--tag-upload-success-content) !important;
+      border: 1px solid var(--tag-upload-success-border);
+
+      span,
+      .ant-typography-ellipsis {
+        color: var(--tag-upload-success-content) !important;
+      }
+
+      svg:hover path {
+        stroke: var(--tag-upload-success-content) !important;
+      }
+
+      .file-list-content {
+        svg path {
+          stroke: var(--tag-upload-success-content) !important;
+        }
+      }
+    `}
+
+  ${({ $fileStatus }) =>
+    $fileStatus === 'error' &&
+    css`
+      background-color: var(--tag-error-bg);
+      color: var(--tag-error-text) !important;
+      border: 1px solid var(--tag-error-border);
+
+      span {
+        color: var(--tag-error-text) !important;
+      }
+
+      svg:hover path {
+        stroke: var(--tag-error-text) !important;
+      }
+
+      .file-list-content {
+        svg path {
+          stroke: var(--tag-error-text) !important;
+        }
+      }
+    `}
+
+  ${({ $fileStatus }) =>
+    $fileStatus === 'uploading' &&
+    css`
+      background-color: var(--tag-promo-bg);
+      color: var(--tag-promo-text) !important;
+      border: 1px solid var(--tag-promo-border);
+
+      span {
+        color: var(--tag-promo-text) !important;
+      }
+
+      svg:hover path {
+        stroke: var(--tag-promo-text) !important;
+      }
+
+      .file-list-content {
+        svg path {
+          stroke: var(--tag-promo-text) !important;
+        }
+      }
+    `}
+`;
+
+const FileListContent = styled.div`
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+`;
+
+const FileListName = styled(TruncateText)`
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+`;
+
+const FileListDelete = styled.div`
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+
+  svg path {
+    stroke: var(--text-secondary) !important;
+  }
+`;
+
+const FileListContainer = styled.div``;
 
 export default ChatForm;
