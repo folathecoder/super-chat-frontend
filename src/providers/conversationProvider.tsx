@@ -11,10 +11,13 @@ import React, {
 import { useParams } from 'next/navigation';
 import {
   Message,
+  MessageStatus,
+  StreamedMessage,
   Conversation,
   Conversations,
   ConversationDetail,
 } from '@/types/api/conversation';
+import { Author } from '@/types/enums';
 import {
   getConversations,
   getConversation,
@@ -159,6 +162,38 @@ export const ConversationProvider: React.FC<{
     [setConversation, setConversations, conversationId]
   );
 
+  const addStreamedTokensToMessage = useCallback(
+    (messageId: string, token: string) => {
+      if (!messageId) return;
+
+      setConversation((prev) => {
+        if (!prev) return prev;
+
+        const messages = [...prev.messages];
+        const idx = messages.findIndex((m) => m.id === messageId);
+
+        if (idx !== -1) {
+          messages[idx] = {
+            ...messages[idx],
+            content: messages[idx].content + token,
+          };
+        } else {
+          messages.push({
+            id: messageId,
+            conversationId: prev.id,
+            content: token,
+            timestamp: new Date().toISOString(),
+            author: Author.AI,
+            status: MessageStatus.LOADING,
+          });
+        }
+
+        return { ...prev, messages };
+      });
+    },
+    []
+  );
+
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
@@ -179,6 +214,11 @@ export const ConversationProvider: React.FC<{
     const handleAIMessageReceived = (receivedMessage: Message) =>
       addMessageToConversation(conversation, receivedMessage);
 
+    const handleStreamedAIMessageReceived = (
+      receivedMessage: StreamedMessage
+    ) =>
+      addStreamedTokensToMessage(receivedMessage.id, receivedMessage.content);
+
     const handleUserMessageCreated = (receivedMessage: Message) =>
       addMessageToConversation(conversation, receivedMessage);
 
@@ -194,11 +234,13 @@ export const ConversationProvider: React.FC<{
     };
 
     socket.on(SOCKET_EVENTS.CHAT_AI_MESSAGE, handleAIMessageReceived);
+    socket.on(SOCKET_EVENTS.CHAT_AI_STREAM, handleStreamedAIMessageReceived);
     socket.on(SOCKET_EVENTS.CHAT_USER_CREATE, handleUserMessageCreated);
     socket.on(SOCKET_EVENTS.CHAT_TITLE_CREATE, handleConversationTitleCreated);
 
     return () => {
       socket.off(SOCKET_EVENTS.CHAT_AI_MESSAGE, handleAIMessageReceived);
+      socket.off(SOCKET_EVENTS.CHAT_AI_STREAM, handleStreamedAIMessageReceived);
       socket.off(SOCKET_EVENTS.CHAT_USER_CREATE, handleUserMessageCreated);
       socket.off(
         SOCKET_EVENTS.CHAT_TITLE_CREATE,

@@ -27,6 +27,11 @@ export interface Message {
   id: string;
 }
 
+export interface StreamedMessage {
+  content: string;
+  id: string;
+}
+
 export interface ConversationDetail {
   userId: string;
   title: string;

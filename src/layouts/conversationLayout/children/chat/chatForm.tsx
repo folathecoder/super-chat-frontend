@@ -267,14 +267,14 @@ const ChatForm = () => {
               }}
             />
           </Form.Item>
-          <StyledUpload {...uploadProps}>
-            <Button icon={<FileUploadOutlinedIcon />} />
-          </StyledUpload>
           <Tooltip title="Upload a maximum of 4 files" placement="top">
-            <SendButton type="submit" disabled={!chatMessage.trim()}>
-              <SendIcon style={{ fontSize: 20 }} />
-            </SendButton>
+            <StyledUpload {...uploadProps}>
+              <Button icon={<FileUploadOutlinedIcon />} />
+            </StyledUpload>
           </Tooltip>
+          <SendButton type="submit" disabled={!chatMessage.trim()}>
+            <SendIcon style={{ fontSize: 20 }} />
+          </SendButton>
         </StyledForm>
         {fileList.length > 0 && (
           <FileListContainer>

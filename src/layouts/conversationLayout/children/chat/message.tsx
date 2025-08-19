@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import styled, { css } from 'styled-components';
+import styled, { css, keyframes } from 'styled-components';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -28,6 +28,9 @@ interface MessageProps {
 const Message = ({ message }: MessageProps) => {
   const { user } = useAuth();
 
+  const isMessageLoading =
+    !message.content && message.status !== MessageStatus.FAILED;
+
   const errorTitle =
     message.author === Author.AI
       ? 'Agent failed to respond'
@@ -42,12 +45,12 @@ const Message = ({ message }: MessageProps) => {
     <MessageContainer
       key={message.id}
       $author={message.author as Author}
-      $isLoading={message.status === MessageStatus.LOADING}
+      $isLoading={isMessageLoading}
     >
       {message.author === Author.AI && (
         <MessageAuthor $author={message.author as Author}>AI</MessageAuthor>
       )}
-      {message.status === MessageStatus.SUCCESS && (
+      {message.content && (
         <MessageContent $author={message.author as Author}>
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
@@ -60,7 +63,7 @@ const Message = ({ message }: MessageProps) => {
           </ReactMarkdown>
         </MessageContent>
       )}
-      {message.status === MessageStatus.LOADING && <Loader />}
+      {isMessageLoading && <Loader />}
       {message.status === MessageStatus.FAILED && (
         <MessageError
           message={errorTitle}
@@ -77,6 +80,17 @@ const Message = ({ message }: MessageProps) => {
     </MessageContainer>
   );
 };
+
+const fadeIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(10px); /* Optional: adds a slight upward movement */
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+`;
 
 const MessageContainer = styled.div<{ $author: Author; $isLoading: boolean }>`
   display: flex;
@@ -133,6 +147,7 @@ const MessageContent = styled.div<{ $author: Author }>`
   line-height: var(--line-height-body);
   color: var(--text-primary);
   word-break: break-word;
+  animation: ${fadeIn} 0.5s ease forwards;
 
   p {
     margin: 0 0 var(--spacing) 0;
