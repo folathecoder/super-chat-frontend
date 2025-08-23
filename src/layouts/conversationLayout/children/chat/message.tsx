@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import styled, { css, keyframes } from 'styled-components';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -23,10 +23,13 @@ interface MessageProps {
     status: string;
     id: string;
   };
+  isStreaming?: boolean;
 }
 
-const Message = ({ message }: MessageProps) => {
+const Message = ({ message, isStreaming = false }: MessageProps) => {
   const { user } = useAuth();
+  const messageRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const isMessageLoading =
     !message.content && message.status !== MessageStatus.FAILED;
@@ -41,17 +44,40 @@ const Message = ({ message }: MessageProps) => {
       ? 'Something went wrong while generating the Agent response. Please try again.'
       : 'Your message could not be delivered. Check your connection or try again.';
 
+  useEffect(() => {
+    if (isStreaming && message.content && contentRef.current) {
+      const chatContainer = contentRef.current.closest('[data-chat-container]');
+      if (chatContainer) {
+        const isScrolledToBottom =
+          chatContainer.scrollTop + chatContainer.clientHeight >=
+          chatContainer.scrollHeight - 100;
+
+        if (isScrolledToBottom) {
+          requestAnimationFrame(() => {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+          });
+        }
+      }
+    }
+  }, [message.content, isStreaming]);
+
   return (
     <MessageContainer
       key={message.id}
+      ref={messageRef}
       $author={message.author as Author}
       $isLoading={isMessageLoading}
+      $isStreaming={isStreaming}
     >
       {message.author === Author.AI && (
         <MessageAuthor $author={message.author as Author}>AI</MessageAuthor>
       )}
       {message.content && (
-        <MessageContent $author={message.author as Author}>
+        <MessageContent
+          ref={contentRef}
+          $author={message.author as Author}
+          $isStreaming={isStreaming}
+        >
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeRaw, rehypeSanitize]}
@@ -84,7 +110,7 @@ const Message = ({ message }: MessageProps) => {
 const fadeIn = keyframes`
   from {
     opacity: 0;
-    transform: translateY(10px); /* Optional: adds a slight upward movement */
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -92,9 +118,14 @@ const fadeIn = keyframes`
   }
 `;
 
-const MessageContainer = styled.div<{ $author: Author; $isLoading: boolean }>`
+const MessageContainer = styled.div<{
+  $author: Author;
+  $isLoading: boolean;
+  $isStreaming: boolean;
+}>`
   display: flex;
   width: 100%;
+  min-height: fit-content;
 
   ${({ $author }) =>
     $author === Author.AI
@@ -110,6 +141,12 @@ const MessageContainer = styled.div<{ $author: Author; $isLoading: boolean }>`
     css`
       align-items: center;
       gap: var(--gap-4);
+    `}
+
+  ${({ $isStreaming }) =>
+    $isStreaming &&
+    css`
+      contain: layout;
     `}
 `;
 
@@ -132,14 +169,19 @@ const MessageAuthor = styled.div<{ $author: Author }>`
       ? css`
           background: var(--gradient-1);
           margin-top: var(--gap-4);
+          align-self: flex-start;
         `
       : css`
           background: var(--accent-quaternary);
           margin-left: var(--gap-2);
+          align-self: flex-start;
         `}
 `;
 
-const MessageContent = styled.div<{ $author: Author }>`
+const MessageContent = styled.div<{
+  $author: Author;
+  $isStreaming: boolean;
+}>`
   padding: var(--gap-3);
   border-radius: var(--border-radius-medium);
   font-family: var(--font-family-1);
@@ -147,10 +189,21 @@ const MessageContent = styled.div<{ $author: Author }>`
   line-height: var(--line-height-body);
   color: var(--text-primary);
   word-break: break-word;
-  animation: ${fadeIn} 0.5s ease forwards;
+  position: relative;
+
+  ${({ $isStreaming }) =>
+    $isStreaming &&
+    css`
+      will-change: auto;
+      transform: translateZ(0);
+    `}
 
   p {
     margin: 0 0 var(--spacing) 0;
+  }
+
+  p:last-child {
+    margin-bottom: 0;
   }
 
   h1,
@@ -161,7 +214,7 @@ const MessageContent = styled.div<{ $author: Author }>`
   h6 {
     font-weight: var(--font-weight-bold);
     line-height: var(--line-height-regular);
-    margin: 1.5rem 0 0.75rem;
+    margin: var(--gap-6) 0 var(--gap-3);
     color: var(--text-primary);
   }
   h1 {

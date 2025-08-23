@@ -30,6 +30,7 @@ export interface Message {
 export interface StreamedMessage {
   content: string;
   id: string;
+  conversation_id: string;
 }
 
 export interface ConversationDetail {

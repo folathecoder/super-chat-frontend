@@ -8,7 +8,7 @@ import React, {
   useCallback,
   useRef,
 } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import {
   Message,
   MessageStatus,
@@ -44,6 +44,7 @@ export interface ConversationContextType {
     currentConversation: ConversationDetail,
     newMessage: Message | undefined
   ) => void;
+  streamingMessageId: string;
 }
 
 export const ConversationContext =
@@ -53,6 +54,7 @@ export const ConversationProvider: React.FC<{
   children: React.ReactNode;
 }> = ({ children }) => {
   const params = useParams();
+  const router = useRouter();
   const conversationId = params.conversationId as string;
 
   const [conversations, setConversations] = useState<Conversations>([]);
@@ -61,6 +63,7 @@ export const ConversationProvider: React.FC<{
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [loadingConversation, setLoadingConversation] = useState(false);
   const [chatMessage, setChatMessage] = useState('');
+  const [streamingMessageId, setStreamingMessageId] = useState('');
 
   const loadingConversationsRef = useRef(false);
   const loadingConversationRef = useRef(false);
@@ -163,11 +166,13 @@ export const ConversationProvider: React.FC<{
   );
 
   const addStreamedTokensToMessage = useCallback(
-    (messageId: string, token: string) => {
+    (messageId: string, conversationId: string, token: string) => {
       if (!messageId) return;
 
+      setStreamingMessageId(messageId);
+
       setConversation((prev) => {
-        if (!prev) return prev;
+        if (!prev || prev.id !== conversationId) return prev;
 
         const messages = [...prev.messages];
         const idx = messages.findIndex((m) => m.id === messageId);
@@ -217,7 +222,11 @@ export const ConversationProvider: React.FC<{
     const handleStreamedAIMessageReceived = (
       receivedMessage: StreamedMessage
     ) =>
-      addStreamedTokensToMessage(receivedMessage.id, receivedMessage.content);
+      addStreamedTokensToMessage(
+        receivedMessage.id,
+        receivedMessage.conversation_id,
+        receivedMessage.content
+      );
 
     const handleUserMessageCreated = (receivedMessage: Message) =>
       addMessageToConversation(conversation, receivedMessage);
@@ -233,10 +242,19 @@ export const ConversationProvider: React.FC<{
       );
     };
 
+    const handleDeleteConversation = (deletedConversationId: string) => {
+      if (deletedConversationId === conversationId) {
+        router.push(`/`);
+      }
+
+      fetchConversations();
+    };
+
     socket.on(SOCKET_EVENTS.CHAT_AI_MESSAGE, handleAIMessageReceived);
     socket.on(SOCKET_EVENTS.CHAT_AI_STREAM, handleStreamedAIMessageReceived);
     socket.on(SOCKET_EVENTS.CHAT_USER_CREATE, handleUserMessageCreated);
     socket.on(SOCKET_EVENTS.CHAT_TITLE_CREATE, handleConversationTitleCreated);
+    socket.on(SOCKET_EVENTS.CHAT_DELETE_CONVERSATION, handleDeleteConversation);
 
     return () => {
       socket.off(SOCKET_EVENTS.CHAT_AI_MESSAGE, handleAIMessageReceived);
@@ -245,6 +263,10 @@ export const ConversationProvider: React.FC<{
       socket.off(
         SOCKET_EVENTS.CHAT_TITLE_CREATE,
         handleConversationTitleCreated
+      );
+      socket.off(
+        SOCKET_EVENTS.CHAT_DELETE_CONVERSATION,
+        handleDeleteConversation
       );
     };
   }, [
@@ -271,6 +293,7 @@ export const ConversationProvider: React.FC<{
         chatMessage,
         setChatMessage,
         addMessageToConversation,
+        streamingMessageId,
       }}
     >
       {children}

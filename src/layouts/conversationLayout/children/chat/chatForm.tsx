@@ -27,6 +27,12 @@ import { VERSION, BASE_URL } from '@/lib/clients/apiClient';
 
 const { TextArea } = Input;
 
+interface ChatFormProps {
+  shouldAutoScroll: boolean;
+  handleScrollToBottomClick: () => void;
+  scrollNearBottom: (offsetFromBottom?: number) => void;
+}
+
 interface ChatFormValues {
   message: string;
 }
@@ -55,7 +61,11 @@ const getFileName = (url: string): string => {
   return url;
 };
 
-const ChatForm = () => {
+const ChatForm = ({
+  shouldAutoScroll,
+  handleScrollToBottomClick,
+  scrollNearBottom,
+}: ChatFormProps) => {
   const {
     conversation,
     chatMessage,
@@ -131,6 +141,7 @@ const ChatForm = () => {
       });
 
       if (createdMessage && conversation) {
+        handleScrollToBottomClick();
         addMessageToConversation(conversation, createdMessage);
       }
 
@@ -168,10 +179,8 @@ const ChatForm = () => {
 
     setChatMessage(newValue);
 
-    // Update form field
     formInstance.setFieldValue('message', newValue);
 
-    // Set cursor position after the pasted text
     setTimeout(() => {
       target.selectionStart = target.selectionEnd = start + markdownText.length;
       target.focus();
@@ -204,10 +213,8 @@ const ChatForm = () => {
     fileList,
     disabled: fileList.length === 4,
     onChange(info) {
-      // Update fileList with proper status
       const updatedList = info.fileList.map((file) => {
         if (file.response) {
-          // Assume your backend returns uploaded file id as response.id
           file.uid = file.response.id || file.uid;
           file.status = 'done';
         }
@@ -216,7 +223,6 @@ const ChatForm = () => {
 
       setFileList(updatedList);
 
-      // Update file map and fileIds
       const newMap: Record<string, FileIdWithType> = {};
       updatedList.forEach((f) => {
         newMap[f.uid] = {
@@ -228,7 +234,6 @@ const ChatForm = () => {
       Object.assign(fileToFileIdMap, newMap);
       setFileIds(Object.values(fileToFileIdMap).map((f) => f.id));
 
-      // Show messages
       const lastFile = info.file;
       if (lastFile.status === 'done') {
         message.success(`${lastFile.name} uploaded successfully`);
@@ -244,6 +249,11 @@ const ChatForm = () => {
 
   return (
     <ChatFormContainer>
+      {!shouldAutoScroll && (
+        <ScrollToBottomButton onClick={() => scrollNearBottom(350)}>
+          ↓ New messages
+        </ScrollToBottomButton>
+      )}
       <BlurredBackground />
       <ChatFormInner>
         <StyledForm
@@ -541,5 +551,28 @@ const FileListDelete = styled.div`
 `;
 
 const FileListContainer = styled.div``;
+
+const ScrollToBottomButton = styled.button`
+  position: fixed;
+  transform: translateY(-60px);
+  background: var(--accent-secondary);
+  color: var(--text-primary);
+  border: none;
+  border-radius: var(--border-radius-xLarge);
+  padding: var(--gap-2) var(--gap-4);
+  font-size: var(--font-size-small);
+  font-family: var(--font-family-1);
+  cursor: pointer;
+  box-shadow: 0 2px 12px var(--shadow-1);
+  transition: all 0.2s ease;
+  z-index: 10;
+
+  &:hover {
+    background: var(--accent-primary);
+    opacity: 0.9;
+    transform: translateY(-55px);
+    box-shadow: 0 4px 16px var(--shadow-2);
+  }
+`;
 
 export default ChatForm;

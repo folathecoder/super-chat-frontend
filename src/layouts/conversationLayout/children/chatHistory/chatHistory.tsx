@@ -3,88 +3,33 @@
 import React, { useCallback } from 'react';
 import styled, { css } from 'styled-components';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Scrollbar } from 'react-scrollbars-custom';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
-import WorkOutlineIcon from '@mui/icons-material/WorkOutline';
-import SchoolIcon from '@mui/icons-material/School';
-import PsychologyIcon from '@mui/icons-material/Psychology';
-import LanguageIcon from '@mui/icons-material/Language';
 import ViewSidebarOutlinedIcon from '@mui/icons-material/ViewSidebarOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useConversation } from '@/providers/conversationProvider';
-import {
-  deleteConversation,
-  getConversations,
-} from '@/services/conversation.service';
+import { deleteConversation } from '@/services/conversation.service';
 
 const ChatHistory = () => {
-  const router = useRouter();
-  const { conversations, conversationId, setConversations } = useConversation();
+  const { conversations, conversationId: currentConversationId } =
+    useConversation();
 
-  const menu = [
-    {
-      key: 1,
-      title: 'Job Hunter',
-      iconName: WorkOutlineIcon,
-      function: () => {
-        console.log('Job Hunter clicked');
-      },
-    },
-    {
-      key: 2,
-      title: 'Career Coach',
-      iconName: PsychologyIcon,
-      function: () => {
-        console.log('Career Coach clicked');
-      },
-    },
-    {
-      key: 3,
-      title: 'Skill Builder',
-      iconName: SchoolIcon,
-      function: () => {
-        console.log('Skill Builder clicked');
-      },
-    },
-    {
-      key: 4,
-      title: 'Language Expert',
-      iconName: LanguageIcon,
-      function: () => {
-        console.log('Language Expert clicked');
-      },
-    },
-    {
-      key: 5,
-      title: 'Chat Assistant',
-      iconName: ChatBubbleOutlineIcon,
-      function: () => {
-        console.log('Chat Assistant clicked');
-      },
-    },
-  ];
+  const handleDeleteConversation = useCallback(
+    async (conversationId: string) => {
+      if (!conversationId) return;
 
-  const handleDeleteConversation = useCallback(async () => {
-    if (!conversationId) return;
-
-    try {
-      await deleteConversation(conversationId);
-
-      const conversationsData = await getConversations();
-      const sortedConversations = [...conversationsData].sort(
-        (a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      );
-      setConversations(sortedConversations);
-    } catch (err) {
-      console.error(
-        `Failed to delete conversation with conversationId: ${conversationId}. Please try again; ${String(
-          err
-        )}`
-      );
-    }
-  }, [conversationId]);
+      try {
+        await deleteConversation(conversationId);
+      } catch (err) {
+        console.error(
+          `Failed to delete conversation with conversationId: ${conversationId}. Please try again; ${String(
+            err
+          )}`
+        );
+      }
+    },
+    []
+  );
 
   return (
     <ChatHistoryContainer>
@@ -96,17 +41,6 @@ const ChatHistory = () => {
           <ViewSidebarOutlinedIcon />
         </ChatHistoryHeaderItem>
       </ChatHistoryHeader>
-      <ChatHistoryTitle>Agents</ChatHistoryTitle>
-      <ChatHistoryMenu>
-        {menu.map((menuItem) => (
-          <ChatHistoryMenuItem key={menuItem.key} onClick={menuItem.function}>
-            <menuItem.iconName />
-            <ChatHistoryMenuItemContent>
-              {menuItem.title}
-            </ChatHistoryMenuItemContent>
-          </ChatHistoryMenuItem>
-        ))}
-      </ChatHistoryMenu>
       <ChatHistoryTitle>Chats</ChatHistoryTitle>
       <ChatHistoryList>
         <Scrollbar removeTracksWhenNotUsed>
@@ -121,16 +55,18 @@ const ChatHistory = () => {
               </EmptyStateSubtext>
             </EmptyState>
           ) : (
-            conversations.map((conversation, index) => (
+            conversations.map((conversation) => (
               <ChatHistoryListItem
                 key={conversation.id}
-                $active={conversation.id === conversationId}
+                $active={conversation.id === currentConversationId}
               >
                 <Link href={`/conversation/${conversation.id}`}>
                   {conversation.title}
                 </Link>
                 <span>
-                  <DeleteOutlineIcon onClick={handleDeleteConversation} />
+                  <DeleteOutlineIcon
+                    onClick={() => handleDeleteConversation(conversation.id)}
+                  />
                 </span>
               </ChatHistoryListItem>
             ))
@@ -169,32 +105,6 @@ const UserProfile = styled.div`
   width: 25px;
   background: var(--gradient-1);
   border-radius: 100%;
-`;
-
-const ChatHistoryMenu = styled.div`
-  flex-shrink: 0;
-  padding: var(--gap-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-4);
-  border-bottom: 1px solid var(--bg-primary);
-`;
-
-const ChatHistoryMenuItem = styled.button`
-  display: flex;
-  align-items: center;
-  gap: var(--gap-2);
-  width: 100%;
-  color: var(--text-secondary);
-
-  svg {
-    font-size: var(--font-size-body);
-  }
-`;
-
-const ChatHistoryMenuItemContent = styled.span`
-  font-size: var(--font-size-small);
-  font-family: var(--font-family-1);
 `;
 
 const ChatHistoryTitle = styled.p`
