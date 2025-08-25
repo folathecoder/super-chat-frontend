@@ -19,6 +19,7 @@ export const colorVariables = ({ theme }: { theme: Theme }) => `
 
   --bg-blur-primary: rgba(255, 255, 255, 0.2);
   --bg-blur-secondary: rgba(255, 255, 255, 0.3);
+  --bg-blur-tertiary: rgba(0, 0, 0, 0.6);
 
   --border-secondary: ${theme.color.border100};
   --border-tertiary: ${theme.color.border200};

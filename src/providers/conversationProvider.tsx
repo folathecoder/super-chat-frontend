@@ -16,6 +16,7 @@ import {
   Conversation,
   Conversations,
   ConversationDetail,
+  UpdateMessageFile,
 } from '@/types/api/conversation';
 import { Author } from '@/types/enums';
 import {
@@ -68,6 +69,7 @@ export const ConversationProvider: React.FC<{
   const loadingConversationsRef = useRef(false);
   const loadingConversationRef = useRef(false);
 
+  // Fetches all conversations and sorts them by the last updated date
   const fetchConversations = useCallback(async () => {
     if (loadingConversationsRef.current) return;
     loadingConversationsRef.current = true;
@@ -90,6 +92,7 @@ export const ConversationProvider: React.FC<{
     }
   }, []);
 
+  // Fetches a specific conversation by ID and updates the state
   const fetchConversation = useCallback(async (id: string) => {
     if (!id || loadingConversationRef.current) return;
     loadingConversationRef.current = true;
@@ -108,6 +111,7 @@ export const ConversationProvider: React.FC<{
     }
   }, []);
 
+  // Adds a new message to the current conversation or updates an existing one
   const addMessageToConversation = useCallback(
     (
       currentConversation: ConversationDetail,
@@ -135,6 +139,7 @@ export const ConversationProvider: React.FC<{
     [setConversation]
   );
 
+  // Updates the conversation title in both the current conversation and the list of conversations
   const updateConversationTitleInList = useCallback(
     (
       currentConversation: ConversationDetail,
@@ -165,6 +170,7 @@ export const ConversationProvider: React.FC<{
     [setConversation, setConversations, conversationId]
   );
 
+  // Adds streamed tokens to an existing message or creates a new message if it doesn't exist
   const addStreamedTokensToMessage = useCallback(
     (messageId: string, conversationId: string, token: string) => {
       if (!messageId) return;
@@ -194,6 +200,54 @@ export const ConversationProvider: React.FC<{
         }
 
         return { ...prev, messages };
+      });
+    },
+    []
+  );
+
+  // Updates the file URL of a specific message in the conversation
+  const updateMessageFileUrl = useCallback(
+    (
+      messageId: string,
+      conversationId: string,
+      fileUrl: string,
+      fileName: string
+    ) => {
+      if (!messageId || !conversationId || !fileUrl || !fileName) return;
+
+      setConversation((prev) => {
+        if (!prev || prev.id !== conversationId) return prev;
+
+        const messages = [...prev.messages];
+        const msgIdx = messages.findIndex((m) => m.id === messageId);
+
+        if (msgIdx !== -1) {
+          const message = { ...messages[msgIdx] };
+
+          if (message.files && message.files.length > 0) {
+            const fileIdx = message.files.findIndex(
+              (f) => f.fileName === fileName
+            );
+
+            if (fileIdx !== -1) {
+              const updatedFiles = [...message.files];
+              updatedFiles[fileIdx] = {
+                ...updatedFiles[fileIdx],
+                fileUrl,
+              };
+
+              messages[msgIdx] = {
+                ...message,
+                files: updatedFiles,
+              };
+            }
+          }
+        }
+
+        return {
+          ...prev,
+          messages,
+        };
       });
     },
     []
@@ -250,11 +304,26 @@ export const ConversationProvider: React.FC<{
       fetchConversations();
     };
 
+    const handleChatMessageFileUpdate = (
+      receivedMessage: UpdateMessageFile
+    ) => {
+      updateMessageFileUrl(
+        receivedMessage.message_id,
+        receivedMessage.conversation_id,
+        receivedMessage.file_url,
+        receivedMessage.file_name
+      );
+    };
+
     socket.on(SOCKET_EVENTS.CHAT_AI_MESSAGE, handleAIMessageReceived);
     socket.on(SOCKET_EVENTS.CHAT_AI_STREAM, handleStreamedAIMessageReceived);
     socket.on(SOCKET_EVENTS.CHAT_USER_CREATE, handleUserMessageCreated);
     socket.on(SOCKET_EVENTS.CHAT_TITLE_CREATE, handleConversationTitleCreated);
     socket.on(SOCKET_EVENTS.CHAT_DELETE_CONVERSATION, handleDeleteConversation);
+    socket.on(
+      SOCKET_EVENTS.CHAT_MESSAGE_FILE_UPDATE,
+      handleChatMessageFileUpdate
+    );
 
     return () => {
       socket.off(SOCKET_EVENTS.CHAT_AI_MESSAGE, handleAIMessageReceived);
@@ -267,6 +336,10 @@ export const ConversationProvider: React.FC<{
       socket.off(
         SOCKET_EVENTS.CHAT_DELETE_CONVERSATION,
         handleDeleteConversation
+      );
+      socket.off(
+        SOCKET_EVENTS.CHAT_MESSAGE_FILE_UPDATE,
+        handleChatMessageFileUpdate
       );
     };
   }, [

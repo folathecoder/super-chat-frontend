@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import React, { useEffect, useRef } from 'react';
 import styled, { css, keyframes } from 'styled-components';
 import ReactMarkdown from 'react-markdown';
@@ -8,21 +9,19 @@ import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import { Author } from '@/types/enums';
 import Loader from '@/components/atoms/loader';
-import { MessageStatus } from '@/types/api/conversation';
-import { Alert } from 'antd';
+import { Alert, Spin } from 'antd';
+import { LoadingOutlined } from '@ant-design/icons';
 import CodeBlock from '@/components/molecules/codeBlock';
 import userInitials from '@/utils/helpers/userInitials';
 import { useAuth } from '@/providers/authenticationProvider';
+import {
+  Message as MessageType,
+  MessageStatus,
+} from '@/types/api/conversation';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 
 interface MessageProps {
-  message: {
-    conversationId: string;
-    content: string;
-    timestamp: string;
-    author: string;
-    status: string;
-    id: string;
-  };
+  message: MessageType;
   isStreaming?: boolean;
 }
 
@@ -87,6 +86,30 @@ const Message = ({ message, isStreaming = false }: MessageProps) => {
           >
             {message.content}
           </ReactMarkdown>
+          {!!message.files?.length && (
+            <MessageFileList>
+              {message.files.map((file, index) => (
+                <MessageFile
+                  href={file.fileUrl ?? ''}
+                  target="_blank"
+                  key={`${file.fileName}_${index}`}
+                >
+                  <AttachFileIcon />
+                  <div>{file.fileName}</div>
+                  {!file.fileUrl && (
+                    <MessageFileLoader>
+                      <Spin
+                        indicator={
+                          <LoadingOutlined style={{ fontSize: 20 }} spin />
+                        }
+                        size="small"
+                      />
+                    </MessageFileLoader>
+                  )}
+                </MessageFile>
+              ))}
+            </MessageFileList>
+          )}
         </MessageContent>
       )}
       {isMessageLoading && <Loader />}
@@ -367,6 +390,41 @@ const MessageError = styled(Alert)`
   .ant-alert-message {
     font-weight: var(--font-weight-bold);
   }
+`;
+
+const MessageFileList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-2);
+`;
+
+const MessageFile = styled(Link)`
+  background-color: var(--bg-tertiary);
+  border-radius: var(--border-radius-medium);
+  padding: var(--gap-2);
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  border: 1px solid var(--border-secondary);
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+  color: var(--text-tertiary) !important;
+  position: relative;
+  box-shadow: var(--shadow-1);
+`;
+
+const MessageFileLoader = styled.div`
+  border-radius: var(--border-radius-medium);
+  background-color: var(--bg-blur-tertiary);
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-right: var(--gap-2);
 `;
 
 export default Message;

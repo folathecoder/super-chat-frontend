@@ -35,19 +35,25 @@ const Chat = () => {
   const scrollbarRef = useRef<ScrollbarRef | null>(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  const [startingConversation, setStartingConversation] = useState(false);
+
   const scrollTimeoutRef = useRef<NodeJS.Timeout>(null);
   const lastMessageCountRef = useRef(messages?.length || 0);
 
+  // Scrolls the chat view near the bottom by a specified offset
   const scrollNearBottom = useCallback((offsetFromBottom: number = 350) => {
     if (!scrollbarRef.current) return;
 
     requestAnimationFrame(() => {
-      const { scrollHeight, clientHeight } = scrollbarRef.current!;
-      scrollbarRef.current!.scrollTop =
+      if (!scrollbarRef.current) return;
+
+      const { scrollHeight, clientHeight } = scrollbarRef.current;
+      scrollbarRef.current.scrollTop =
         scrollHeight - clientHeight - offsetFromBottom;
     });
   }, []);
 
+  // Determines if the scrollbar is near the bottom of the chat view
   const isNearBottom = useCallback(() => {
     const scrollbar = scrollbarRef.current;
     if (!scrollbar) return false;
@@ -60,6 +66,7 @@ const Chat = () => {
     );
   }, []);
 
+  // Handles the scroll event, updating the state based on user interaction
   const handleScroll = useCallback(() => {
     const wasNearBottom = isNearBottom();
     setShouldAutoScroll(wasNearBottom);
@@ -74,10 +81,12 @@ const Chat = () => {
     }, 150);
   }, [isNearBottom]);
 
+  // Scrolls to the bottom of the chat view if conditions are met
   const scrollToBottom = useCallback(
     (force = false) => {
       if (!scrollbarRef.current) return;
 
+      // Automatically scroll if user is not scrolling or if forced
       if (shouldAutoScroll || force) {
         requestAnimationFrame(() => {
           scrollbarRef.current?.scrollToBottom();
@@ -87,6 +96,7 @@ const Chat = () => {
     [shouldAutoScroll]
   );
 
+  // Handles the click event to scroll to the bottom of the chat view
   const handleScrollToBottomClick = () => {
     setShouldAutoScroll(true);
     scrollToBottom();
@@ -96,6 +106,7 @@ const Chat = () => {
     const currentMessageCount = messages?.length || 0;
     const hasNewMessages = currentMessageCount > lastMessageCountRef.current;
 
+    // If there are new messages and the user is not scrolling, scroll down
     if (hasNewMessages && !isUserScrolling) {
       const timeoutId = setTimeout(() => {
         scrollToBottom();
@@ -110,19 +121,24 @@ const Chat = () => {
 
   useEffect(() => {
     return () => {
+      // Cleanup the scroll timeout on component unmount
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current);
       }
     };
   }, []);
 
+  // Automatically scroll near the bottom when a new conversation is selected
   useEffect(() => {
     if (id) {
       scrollNearBottom(350);
     }
   }, [id]);
 
+  // Initiates a new conversation and navigates to it
   const handleStartConversation = async () => {
+    setStartingConversation(true);
+
     try {
       const newConversation = await startConversation();
 
@@ -134,6 +150,8 @@ const Chat = () => {
       router.push(`/conversation/${newConversation.id}`);
     } catch (error) {
       console.error('Error starting conversation:', error);
+    } finally {
+      setStartingConversation(false);
     }
   };
 
@@ -141,7 +159,10 @@ const Chat = () => {
     <ChatContainer>
       <ChatHeader>
         <h1>{title}</h1>
-        <NewChatButton onClick={handleStartConversation}>
+        <NewChatButton
+          onClick={handleStartConversation}
+          disabled={startingConversation}
+        >
           <ChatBubbleOutlineIcon />
           <span>New Chat</span>
         </NewChatButton>
@@ -151,7 +172,6 @@ const Chat = () => {
           <Scrollbar
             ref={scrollbarRef as RefObject<Scrollbar | ScrollbarRef | null>}
             onScroll={handleScroll}
-            disableDefaultStyles={false}
             trackYProps={{
               style: {
                 background: 'var(--bg-secondary)',

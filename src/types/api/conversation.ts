@@ -25,6 +25,21 @@ export interface Message {
   author: Author;
   status: MessageStatus;
   id: string;
+  files?: MessageFile[];
+}
+
+export interface MessageFile {
+  fileName: string;
+  fileExtension: string;
+  mimeType: string;
+  fileUrl: string | null;
+}
+
+export interface UpdateMessageFile {
+  conversation_id: string;
+  message_id: string;
+  file_name: string;
+  file_url: string;
 }
 
 export interface StreamedMessage {

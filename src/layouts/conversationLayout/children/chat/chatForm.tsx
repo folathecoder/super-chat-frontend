@@ -5,7 +5,6 @@ import styled, { css } from 'styled-components';
 import {
   Tooltip,
   Button,
-  message,
   Upload,
   Form,
   Input,
@@ -23,9 +22,9 @@ import { Author } from '@/types/enums';
 import { useConversation } from '@/providers/conversationProvider';
 import type { UploadFile, UploadFileStatus } from 'antd/es/upload/interface';
 import TruncateText from '@/components/atoms/textTruncate';
-import { VERSION, BASE_URL } from '@/lib/clients/apiClient';
 
 const { TextArea } = Input;
+const MAX_UPLOADED_FILES = 4;
 
 interface ChatFormProps {
   shouldAutoScroll: boolean;
@@ -40,7 +39,7 @@ interface ChatFormValues {
 interface FileIdWithType {
   id: string;
   type: string;
-  status: UploadFileStatus;
+  status?: UploadFileStatus;
 }
 
 interface FileInfo {
@@ -84,9 +83,7 @@ const ChatForm = ({
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>({});
 
-  useEffect(() => {
-    formInstance.setFieldsValue({ message: chatMessage });
-  }, [chatMessage, formInstance]);
+  console.log('uploadStatus', uploadStatus);
 
   useEffect(() => {
     if (initialFiles?.length) {
@@ -112,18 +109,6 @@ const ChatForm = ({
     setFileIds(fileList.map((f) => fileToFileIdMap[f.uid].id));
   }, [fileList, fileToFileIdMap]);
 
-  const convertToMarkdown = (text: string): string => {
-    let markdown = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-    markdown = markdown.replace(/(https?:\/\/[^\s]+)/g, '[$1]($1)');
-    markdown = markdown.replace(/\*\*(.*?)\*\*/g, '**$1**');
-    markdown = markdown.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '*$1*');
-    markdown = markdown.replace(/```([\s\S]*?)```/g, '```$1```');
-    markdown = markdown.replace(/`([^`]+)`/g, '`$1`');
-
-    return markdown;
-  };
-
   const handleFormSubmit = async () => {
     try {
       const conversationIdToUse =
@@ -135,9 +120,14 @@ const ChatForm = ({
         throw new Error('Failed to start or retrieve conversation');
       }
 
+      const filesToUpload: File[] = fileList
+        .map((f) => f.originFileObj as File)
+        .filter(Boolean);
+
       const createdMessage = await createMessage(conversationIdToUse, {
         content: chatMessage.trim(),
         author: Author.USER,
+        files: filesToUpload,
       });
 
       if (createdMessage && conversation) {
@@ -159,38 +149,9 @@ const ChatForm = ({
     setFileIds([]);
   };
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    e.preventDefault();
-
-    const pastedText = e.clipboardData.getData('text');
-    const markdownText = convertToMarkdown(pastedText);
-
-    // Get current cursor position
-    const target = e.target as HTMLTextAreaElement;
-    const start = target.selectionStart;
-    const end = target.selectionEnd;
-
-    // Insert the markdown text at cursor position
-    const currentValue = chatMessage;
-    const newValue =
-      currentValue.substring(0, start) +
-      markdownText +
-      currentValue.substring(end);
-
-    setChatMessage(newValue);
-
-    formInstance.setFieldValue('message', newValue);
-
-    setTimeout(() => {
-      target.selectionStart = target.selectionEnd = start + markdownText.length;
-      target.focus();
-    }, 0);
-  };
-
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = event.target.value;
     setChatMessage(value);
-    formInstance.setFieldValue('message', value);
   };
 
   const handleRemove = (file: UploadFile) => {
@@ -206,18 +167,17 @@ const ChatForm = ({
 
   const uploadProps: UploadProps = {
     name: 'file',
-    action: `${BASE_URL}/api/${VERSION}/files/upload`,
-    headers: { authorization: 'authorization-text' },
     multiple: true,
-    maxCount: 4,
+    maxCount: MAX_UPLOADED_FILES,
     fileList,
-    disabled: fileList.length === 4,
+    disabled: fileList.length === MAX_UPLOADED_FILES,
     onChange(info) {
       const updatedList = info.fileList.map((file) => {
         if (file.response) {
           file.uid = file.response.id || file.uid;
           file.status = 'done';
         }
+
         return file;
       });
 
@@ -233,13 +193,6 @@ const ChatForm = ({
       });
       Object.assign(fileToFileIdMap, newMap);
       setFileIds(Object.values(fileToFileIdMap).map((f) => f.id));
-
-      const lastFile = info.file;
-      if (lastFile.status === 'done') {
-        message.success(`${lastFile.name} uploaded successfully`);
-      } else if (lastFile.status === 'error') {
-        message.error(`${lastFile.name} upload failed.`);
-      }
     },
     onRemove(file) {
       handleRemove(file);
@@ -267,8 +220,8 @@ const ChatForm = ({
               autoSize={{ minRows: 1, maxRows: 6 }}
               autoFocus
               variant="borderless"
+              value={chatMessage}
               onChange={handleInputChange}
-              onPaste={handlePaste}
               onPressEnter={(event) => {
                 if (!event.shiftKey) {
                   event.preventDefault();

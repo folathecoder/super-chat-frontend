@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback } from 'react';
+import React, { useState } from 'react';
 import styled, { css } from 'styled-components';
 import Link from 'next/link';
 import { Scrollbar } from 'react-scrollbars-custom';
@@ -8,28 +8,19 @@ import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import ViewSidebarOutlinedIcon from '@mui/icons-material/ViewSidebarOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useConversation } from '@/providers/conversationProvider';
-import { deleteConversation } from '@/services/conversation.service';
+import DeleteChatModal from './deleteChatModal';
 
 const ChatHistory = () => {
   const { conversations, conversationId: currentConversationId } =
     useConversation();
 
-  const handleDeleteConversation = useCallback(
-    async (conversationId: string) => {
-      if (!conversationId) return;
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [openedConversationId, setOpenedConversationId] = useState('');
 
-      try {
-        await deleteConversation(conversationId);
-      } catch (err) {
-        console.error(
-          `Failed to delete conversation with conversationId: ${conversationId}. Please try again; ${String(
-            err
-          )}`
-        );
-      }
-    },
-    []
-  );
+  const handleShowDeleteModal = (conversationId: string) => {
+    setOpenDeleteModal(true);
+    setOpenedConversationId(conversationId);
+  };
 
   return (
     <ChatHistoryContainer>
@@ -65,9 +56,17 @@ const ChatHistory = () => {
                 </Link>
                 <span>
                   <DeleteOutlineIcon
-                    onClick={() => handleDeleteConversation(conversation.id)}
+                    onClick={() => handleShowDeleteModal(conversation.id)}
                   />
                 </span>
+                {openedConversationId === conversation.id && (
+                  <DeleteChatModal
+                    openModal={openDeleteModal}
+                    setOpenModal={setOpenDeleteModal}
+                    conversationId={conversation.id}
+                    conversationTitle={conversation.title}
+                  />
+                )}
               </ChatHistoryListItem>
             ))
           )}
