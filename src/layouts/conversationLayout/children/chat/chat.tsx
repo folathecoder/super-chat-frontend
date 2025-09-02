@@ -7,7 +7,7 @@ import React, {
 } from 'react';
 import styled from 'styled-components';
 import { Scrollbar } from 'react-scrollbars-custom';
-import Message from './message';
+import Message from './message/message';
 import ChatForm from './chatForm';
 import Prompts from './prompts';
 import { useRouter } from 'next/navigation';

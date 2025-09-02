@@ -83,7 +83,9 @@ const ChatForm = ({
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>({});
 
-  console.log('uploadStatus', uploadStatus);
+  useEffect(() => {
+    formInstance.setFieldsValue({ message: chatMessage });
+  }, [chatMessage, formInstance]);
 
   useEffect(() => {
     if (initialFiles?.length) {

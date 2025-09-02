@@ -1,47 +1,40 @@
 'use client';
 
-import Link from 'next/link';
 import React, { useEffect, useRef } from 'react';
-import styled, { css, keyframes } from 'styled-components';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
-import rehypeSanitize from 'rehype-sanitize';
+import styled, { css } from 'styled-components';
 import { Author } from '@/types/enums';
-import Loader from '@/components/atoms/loader';
-import { Alert, Spin } from 'antd';
-import { LoadingOutlined } from '@ant-design/icons';
-import CodeBlock from '@/components/molecules/codeBlock';
-import userInitials from '@/utils/helpers/userInitials';
-import { useAuth } from '@/providers/authenticationProvider';
+import { Alert } from 'antd';
+import ReactMarkdown from 'react-markdown';
 import {
   Message as MessageType,
   MessageStatus,
 } from '@/types/api/conversation';
-import AttachFileIcon from '@mui/icons-material/AttachFile';
+import AIMessage from './aiMessage';
+import UserMessage from './userMessage';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize from 'rehype-sanitize';
+import CodeBlock from '@/components/molecules/codeBlock';
 
 interface MessageProps {
   message: MessageType;
   isStreaming?: boolean;
 }
 
+interface MessageContentProps {
+  author: Author;
+  message: string;
+  isStreaming: boolean;
+  ref: React.RefObject<HTMLDivElement | null>;
+  children?: React.ReactNode;
+}
+
 const Message = ({ message, isStreaming = false }: MessageProps) => {
-  const { user } = useAuth();
   const messageRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const isMessageLoading =
     !message.content && message.status !== MessageStatus.FAILED;
-
-  const errorTitle =
-    message.author === Author.AI
-      ? 'Agent failed to respond'
-      : 'Message failed to send';
-
-  const errorMessage =
-    message.author === Author.AI
-      ? 'Something went wrong while generating the Agent response. Please try again.'
-      : 'Your message could not be delivered. Check your connection or try again.';
 
   useEffect(() => {
     if (isStreaming && message.content && contentRef.current) {
@@ -69,77 +62,47 @@ const Message = ({ message, isStreaming = false }: MessageProps) => {
       $isStreaming={isStreaming}
     >
       {message.author === Author.AI && (
-        <MessageAuthor $author={message.author as Author}>AI</MessageAuthor>
-      )}
-      {message.content && (
-        <MessageContent
-          ref={contentRef}
-          $author={message.author as Author}
-          $isStreaming={isStreaming}
-        >
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeRaw, rehypeSanitize]}
-            components={{
-              code: CodeBlock,
-            }}
-          >
-            {message.content}
-          </ReactMarkdown>
-          {!!message.files?.length && (
-            <MessageFileList>
-              {message.files.map((file, index) => (
-                <MessageFile
-                  href={file.fileUrl ?? ''}
-                  target="_blank"
-                  key={`${file.fileName}_${index}`}
-                >
-                  <AttachFileIcon />
-                  <div>{file.fileName}</div>
-                  {!file.fileUrl && (
-                    <MessageFileLoader>
-                      <Spin
-                        indicator={
-                          <LoadingOutlined style={{ fontSize: 20 }} spin />
-                        }
-                        size="small"
-                      />
-                    </MessageFileLoader>
-                  )}
-                </MessageFile>
-              ))}
-            </MessageFileList>
-          )}
-        </MessageContent>
-      )}
-      {isMessageLoading && <Loader />}
-      {message.status === MessageStatus.FAILED && (
-        <MessageError
-          message={errorTitle}
-          showIcon
-          description={errorMessage}
-          type="error"
+        <AIMessage
+          message={message}
+          isMessageLoading={isMessageLoading}
+          isStreaming={isStreaming}
+          contentRef={contentRef}
         />
       )}
       {message.author === Author.USER && (
-        <MessageAuthor $author={message.author as Author}>
-          {userInitials(user?.firstName, user?.lastName)}
-        </MessageAuthor>
+        <UserMessage
+          message={message}
+          isMessageLoading={isMessageLoading}
+          isStreaming={isStreaming}
+          contentRef={contentRef}
+        />
       )}
     </MessageContainer>
   );
 };
 
-const fadeIn = keyframes`
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-`;
+export const MessageContent = ({
+  author,
+  message,
+  isStreaming,
+  ref,
+  children,
+}: MessageContentProps) => {
+  return (
+    <Content ref={ref} $author={author} $isStreaming={isStreaming}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw, rehypeSanitize]}
+        components={{
+          code: CodeBlock,
+        }}
+      >
+        {message}
+      </ReactMarkdown>
+      {children}
+    </Content>
+  );
+};
 
 const MessageContainer = styled.div<{
   $author: Author;
@@ -173,40 +136,12 @@ const MessageContainer = styled.div<{
     `}
 `;
 
-const MessageAuthor = styled.div<{ $author: Author }>`
-  height: 40px;
-  width: 40px;
-  flex-shrink: 0;
-  border-radius: 100%;
-  display: grid;
-  place-items: center;
-  font-size: var(--font-size-regular);
-  line-height: var(--line-height-regular);
-  font-family: var(--font-family-1);
-  font-weight: var(--font-weight-bold);
-  text-transform: capitalize;
-  color: var(--text-primary);
-
-  ${({ $author }) =>
-    $author === Author.AI
-      ? css`
-          background: var(--gradient-1);
-          margin-top: var(--gap-4);
-          align-self: flex-start;
-        `
-      : css`
-          background: var(--accent-quaternary);
-          margin-left: var(--gap-2);
-          align-self: flex-start;
-        `}
-`;
-
-const MessageContent = styled.div<{
+export const Content = styled.div<{
   $author: Author;
   $isStreaming: boolean;
 }>`
   padding: var(--gap-3);
-  border-radius: var(--border-radius-medium);
+  border-radius: var(--border-radius-large);
   font-family: var(--font-family-1);
   font-size: var(--font-size-body);
   line-height: var(--line-height-body);
@@ -359,6 +294,7 @@ const MessageContent = styled.div<{
       ? css`
           max-width: 100%;
           background-color: transparent;
+          padding: var(--gap-3) 0;
         `
       : css`
           max-width: 80%;
@@ -373,7 +309,7 @@ const MessageContent = styled.div<{
         `}
 `;
 
-const MessageError = styled(Alert)`
+export const MessageError = styled(Alert)`
   margin-left: var(--gap-4);
   font-family: var(--font-family-1);
 
@@ -390,41 +326,6 @@ const MessageError = styled(Alert)`
   .ant-alert-message {
     font-weight: var(--font-weight-bold);
   }
-`;
-
-const MessageFileList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-2);
-`;
-
-const MessageFile = styled(Link)`
-  background-color: var(--bg-tertiary);
-  border-radius: var(--border-radius-medium);
-  padding: var(--gap-2);
-  display: flex;
-  align-items: center;
-  gap: var(--gap-2);
-  border: 1px solid var(--border-secondary);
-  font-size: var(--font-size-small);
-  line-height: var(--line-height-small);
-  color: var(--text-tertiary) !important;
-  position: relative;
-  box-shadow: var(--shadow-1);
-`;
-
-const MessageFileLoader = styled.div`
-  border-radius: var(--border-radius-medium);
-  background-color: var(--bg-blur-tertiary);
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding-right: var(--gap-2);
 `;
 
 export default Message;

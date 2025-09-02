@@ -13,6 +13,7 @@ import {
   Message,
   MessageStatus,
   StreamedMessage,
+  StreamedReasoningMessage,
   Conversation,
   Conversations,
   ConversationDetail,
@@ -193,6 +194,43 @@ export const ConversationProvider: React.FC<{
             id: messageId,
             conversationId: prev.id,
             content: token,
+            reasoning: null,
+            timestamp: new Date().toISOString(),
+            author: Author.AI,
+            status: MessageStatus.LOADING,
+          });
+        }
+
+        return { ...prev, messages };
+      });
+    },
+    []
+  );
+
+  // Adds streamed tokens to an existing reasoning message or creates a new message if it doesn't exist
+  const addStreamedTokensToReasoning = useCallback(
+    (messageId: string, conversationId: string, token: string) => {
+      if (!messageId) return;
+
+      setStreamingMessageId(messageId);
+
+      setConversation((prev) => {
+        if (!prev || prev.id !== conversationId) return prev;
+
+        const messages = [...prev.messages];
+        const idx = messages.findIndex((m) => m.id === messageId);
+
+        if (idx !== -1) {
+          messages[idx] = {
+            ...messages[idx],
+            reasoning: messages[idx].reasoning + token,
+          };
+        } else {
+          messages.push({
+            id: messageId,
+            conversationId: prev.id,
+            content: '',
+            reasoning: null,
             timestamp: new Date().toISOString(),
             author: Author.AI,
             status: MessageStatus.LOADING,
@@ -282,6 +320,15 @@ export const ConversationProvider: React.FC<{
         receivedMessage.content
       );
 
+    const handleStreamedAIReasoningMessageReceived = (
+      receivedMessage: StreamedReasoningMessage
+    ) =>
+      addStreamedTokensToReasoning(
+        receivedMessage.id,
+        receivedMessage.conversation_id,
+        receivedMessage.reasoning
+      );
+
     const handleUserMessageCreated = (receivedMessage: Message) =>
       addMessageToConversation(conversation, receivedMessage);
 
@@ -317,6 +364,10 @@ export const ConversationProvider: React.FC<{
 
     socket.on(SOCKET_EVENTS.CHAT_AI_MESSAGE, handleAIMessageReceived);
     socket.on(SOCKET_EVENTS.CHAT_AI_STREAM, handleStreamedAIMessageReceived);
+    socket.on(
+      SOCKET_EVENTS.CHAT_AI_REASONING_STREAM,
+      handleStreamedAIReasoningMessageReceived
+    );
     socket.on(SOCKET_EVENTS.CHAT_USER_CREATE, handleUserMessageCreated);
     socket.on(SOCKET_EVENTS.CHAT_TITLE_CREATE, handleConversationTitleCreated);
     socket.on(SOCKET_EVENTS.CHAT_DELETE_CONVERSATION, handleDeleteConversation);
@@ -328,6 +379,10 @@ export const ConversationProvider: React.FC<{
     return () => {
       socket.off(SOCKET_EVENTS.CHAT_AI_MESSAGE, handleAIMessageReceived);
       socket.off(SOCKET_EVENTS.CHAT_AI_STREAM, handleStreamedAIMessageReceived);
+      socket.off(
+        SOCKET_EVENTS.CHAT_AI_REASONING_STREAM,
+        handleStreamedAIReasoningMessageReceived
+      );
       socket.off(SOCKET_EVENTS.CHAT_USER_CREATE, handleUserMessageCreated);
       socket.off(
         SOCKET_EVENTS.CHAT_TITLE_CREATE,

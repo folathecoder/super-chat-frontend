@@ -21,6 +21,7 @@ export enum MessageStatus {
 export interface Message {
   conversationId: string;
   content: string;
+  reasoning: string | null;
   timestamp: string;
   author: Author;
   status: MessageStatus;
@@ -44,6 +45,12 @@ export interface UpdateMessageFile {
 
 export interface StreamedMessage {
   content: string;
+  id: string;
+  conversation_id: string;
+}
+
+export interface StreamedReasoningMessage {
+  reasoning: string;
   id: string;
   conversation_id: string;
 }
